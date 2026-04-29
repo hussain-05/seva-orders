@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable"; // Changed import style
+import autoTable from "jspdf-autotable";
 import { PlusCircle, ShoppingCart, History, Printer, Check, Loader2, Package } from 'lucide-react';
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOdDY-fkKOo_LWG-U3DUBrELDZ1RRNvZlgkn1ZYBxfBeCvUOhRbtPCcG16WOT8GhlX/exec";
+// NEW: Import the logo
+import logo from './assets/seva-logo.png'; 
+
+// ==========================================
+// 1. SET YOUR API URL HERE
+// ==========================================
+const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL";
 
 export default function App() {
   const [view, setView] = useState('add'); 
@@ -22,19 +28,14 @@ export default function App() {
 
   useEffect(() => { if (view !== 'add') fetchData(); }, [view]);
 
-  // --- FIXED BULK PRINT LOGIC ---
+  // --- FINAL BULK PRINT LOGIC (A5 Portrait, 9pt font, with SN) ---
   const handleBulkPrint = (allData, type) => {
     try {
-      const doc = new jsPDF({ 
-        orientation: 'p', 
-        unit: 'mm', 
-        format: 'a5' 
-      });
-  
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5' });
       const filtered = allData.filter(i => type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed');
       
       if (filtered.length === 0) return alert("No items to print!");
-  
+
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.text("SEVA STORES - ORDER LIST", 10, 10);
@@ -43,8 +44,7 @@ export default function App() {
       doc.setFont("helvetica", "normal");
       doc.text(`Type: ${type === 'toOrder' ? 'Pending' : 'History'} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
       doc.line(10, 17, 138, 17);
-  
-      // Prepare Table Rows with Serial Number (index + 1)
+
       const tableRows = filtered.map((item, index) => [
         index + 1, // SN Column
         item.ItemName || "-",
@@ -53,40 +53,28 @@ export default function App() {
         item.Qty || "-",
         item.Unit || "-"
       ]);
-  
+
       autoTable(doc, {
         startY: 20,
         head: [['SN', 'Item Name', 'Company', 'Spec', 'Qty', 'Unit']],
         body: tableRows,
         theme: 'grid',
-        headStyles: { 
-          fillColor: [37, 99, 235], 
-          fontSize: 9,
-          halign: 'center'
-        },
-        styles: { 
-          fontSize: 9, 
-          cellPadding: 1.5,
-          overflow: 'linebreak'
-        },
+        headStyles: { fillColor: [37, 99, 235], fontSize: 9, halign: 'center' },
+        styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center' }, // SN
-          1: { cellWidth: 35 }, // Item Name
-          2: { cellWidth: 23 }, // Company
-          3: { cellWidth: 23 }, // Spec
-          4: { cellWidth: 12, halign: 'center' }, // Qty
-          5: { cellWidth: 25, halign: 'center' }  // Unit
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 23 },
+          3: { cellWidth: 23 },
+          4: { cellWidth: 12, halign: 'center' },
+          5: { cellWidth: 25, halign: 'center' }
         },
         margin: { left: 10, right: 10 }
       });
-  
+
       const pdfBlobUrl = doc.output('bloburl');
       window.open(pdfBlobUrl, '_blank');
-  
-    } catch (e) { 
-      console.error(e);
-      alert("Print failed: " + e.message); 
-    }
+    } catch (e) { alert("Print failed: " + e.message); }
   };
 
   const completeOrder = async (item) => {
@@ -105,33 +93,50 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
-      <nav className="bg-blue-600 text-white p-4 sticky top-0 shadow-lg flex justify-around items-center z-50">
-        <NavBtn active={view === 'add'} onClick={() => setView('add')} icon={<PlusCircle/>} label="Add" />
-        <NavBtn active={view === 'toOrder'} onClick={() => setView('toOrder')} icon={<ShoppingCart/>} label="To Order" />
-        <NavBtn active={view === 'ordered'} onClick={() => setView('ordered')} icon={<History/>} label="Ordered" />
-      </nav>
+    <div className="min-h-screen bg-gray-50 pb-24">
+      {/* Small Top Header for Branding - Updated with Logo */}
+      <header className="bg-white p-3 shadow-sm border-b border-gray-100 flex items-center justify-center">
+         <img src={logo} alt="Seva Stores Logo" className="h-15 w-auto" /> {/* Logo added here */}
+      </header>
 
       <main className="p-4 max-w-2xl mx-auto">
         {loading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-blue-600" /></div>}
+
         {view === 'add' && <AddForm onSave={() => setView('toOrder')} />}
+        
         {(view === 'toOrder' || view === 'ordered') && (
-          <ListView items={items} type={view} onComplete={completeOrder} onBulkPrint={handleBulkPrint} />
+          <ListView 
+            items={items} 
+            type={view} 
+            onComplete={completeOrder} 
+            onBulkPrint={handleBulkPrint} 
+          />
         )}
       </main>
+
+      {/* FIXED BOTTOM NAVIGATION */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex justify-around items-center z-50 h-20 px-2 pb-safe">
+        <NavBtn active={view === 'add'} onClick={() => setView('add')} icon={<PlusCircle size={24}/>} label="Add" />
+        <NavBtn active={view === 'toOrder'} onClick={() => setView('toOrder')} icon={<ShoppingCart size={24}/>} label="To Order" />
+        <NavBtn active={view === 'ordered'} onClick={() => setView('ordered')} icon={<History size={24}/>} label="Ordered" />
+      </nav>
     </div>
   );
 }
 
 function NavBtn({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all ${active ? 'scale-110 font-bold opacity-100' : 'opacity-60'}`}>
-      {icon} <span className="text-[10px] uppercase tracking-wider">{label}</span>
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-200 ${active ? 'text-blue-600 scale-105' : 'text-gray-400'}`}>
+      <div className={`transition-colors duration-200 ${active ? 'bg-blue-50 p-2 rounded-xl' : 'p-2'}`}>
+        {icon}
+      </div>
+      <span className={`text-[10px] font-bold uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-60'}`}>
+        {label}
+      </span>
     </button>
   );
 }
 
-// --- ADDED MISSING FIELDS HERE ---
 function AddForm({ onSave }) {
   const [btnLoading, setBtnLoading] = useState(false);
   const [form, setForm] = useState({ itemName: '', company: '', spec: '', qty: '', unit: 'packet', shop: 'Seva [S]', owner: 'Hussain' });
@@ -146,24 +151,20 @@ function AddForm({ onSave }) {
         body: JSON.stringify({ action: 'add', ...form })
       });
       alert("Added to Seva List!");
-      // Reset only the item-specific fields so you can keep adding quickly
       setForm({ ...form, itemName: '', company: '', spec: '', qty: '' });
-      // Note: We removed onSave() here so it doesn't switch views automatically
     } catch (e) { alert("Failed to connect."); }
     setBtnLoading(false);
   };
 
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-4">
-      {/* ... previous header code ... */}
+      <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><Package className="text-blue-600"/> NEW REQUIREMENT</h2>
       
-      {/* Item Name Input */}
       <div>
         <label className="text-xs font-bold text-gray-400 uppercase">Item Name*</label>
         <input required className="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-blue-500 outline-none" value={form.itemName} onChange={e => setForm({...form, itemName: e.target.value})} />
       </div>
 
-      {/* Company & Spec Inputs */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Company Name</label>
@@ -183,13 +184,11 @@ function AddForm({ onSave }) {
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Unit*</label>
           <select className="w-full border-2 border-gray-100 p-3 rounded-xl bg-white" value={form.unit} onChange={e => setForm({...form, unit: e.target.value})}>
-            {/* Added "pieces" here */}
             {['pieces', 'g', 'kg', 'ml', 'ltr', 'packet', 'box', 'dozen', 'bag'].map(u => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
       </div>
 
-      {/* ... Rest of the form (Shop/Owner/Submit) ... */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Shop*</label>
@@ -208,13 +207,12 @@ function AddForm({ onSave }) {
       </div>
 
       <button disabled={btnLoading} type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all">
-        {btnLoading ? "Processing..." : "Submit & Add Another"}
+        {btnLoading ? "Processing..." : "Submit Requirement"}
       </button>
     </form>
   );
 }
 
-// --- REMOVED INDIVIDUAL PRINT BUTTON HERE ---
 function ListView({ items, type, onComplete, onBulkPrint }) {
   const filtered = items.filter(i => type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed');
 
@@ -245,13 +243,13 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
           <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-2">{month}</h4>
           <div className="space-y-3">
             {grouped[month].map((item, idx) => (
-              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all hover:border-blue-100 hover:shadow">
                 <div className="flex-1">
                   <h5 className="font-bold text-gray-800 text-lg leading-tight">{item.ItemName}</h5>
                   <p className="text-sm text-gray-500 font-medium">
-                    {item.Qty} {item.Unit} {item.Company ? `• ${item.Company}` : ''}
+                    {item.Qty} {item.Unit} {item.Company ? `• ${item.Company}` : ''} {item.Spec ? `• ${item.Spec}` : ''}
                   </p>
-                  <p className="text-[10px] text-blue-500 font-bold mt-1">SHOP: {item.Shop} | BY: {item.Owner}</p>
+                  <p className="text-[10px] text-blue-500 font-bold mt-1 uppercase">SHOP: {item.Shop} | BY: {item.Owner}</p>
                 </div>
                 {type === 'toOrder' && (
                   <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl border border-green-100 hover:bg-green-600 hover:text-white transition-colors">
@@ -266,6 +264,7 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
 
       {filtered.length === 0 && (
         <div className="text-center py-20 bg-white rounded-3xl border-4 border-dashed border-gray-50">
+          <Package className="text-gray-100 mx-auto mb-3" size={60} />
           <p className="text-gray-300 font-black text-xl">All Clear!</p>
         </div>
       )}
