@@ -9,7 +9,7 @@ import logo from './assets/seva-logo.png';
 // ==========================================
 // 1. SET YOUR API URL HERE
 // ==========================================
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOdDY-fkKOo_LWG-U3DUBrELDZ1RRNvZlgkn1ZYBxfBeCvUOhRbtPCcG16WOT8GhlX/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6O11PWbadVnbEHlOEp66EGNpEoIJU5I3stt2Ve0i__eKABz3y0hMX2Tu43Eko1vWm/exec";
 
 export default function App() {
   const [view, setView] = useState('add'); 
@@ -31,9 +31,12 @@ export default function App() {
   // --- FINAL BULK PRINT LOGIC (A5 Portrait, 9pt font, with SN) ---
   const handleBulkPrint = (allData, type, activeFilters) => {
     try {
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5' });
-      
-      // Filter by Status AND the current UI filters
+      const doc = new jsPDF({ 
+        orientation: 'p', 
+        unit: 'mm', 
+        format: 'a5' 
+      });
+  
       const filtered = allData.filter(i => {
         const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
         const matchShop = activeFilters.shop === 'All' || i.Shop === activeFilters.shop;
@@ -43,6 +46,7 @@ export default function App() {
       
       if (filtered.length === 0) return alert("No items to print for this filter!");
   
+      // Header logic
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.text("SEVA STORES - ORDER LIST", 10, 10);
@@ -53,35 +57,56 @@ export default function App() {
       doc.text(`${filterText} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
       doc.line(10, 17, 138, 17);
   
-      const tableRows = filtered.map((item, index) => [
-        index + 1,
-        item.ItemName || "-",
-        item.Company || "-",
-        item.Spec || "-",
-        item.Qty || "-",
-        item.Unit || "-"
-      ]);
+      // Helper for Turnaround calculation inside PDF
+      const getTurnaround = (start, end) => {
+        if (!start || !end || end === "Done" || end === "undefined") return "-";
+        const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60);
+        return diff < 1 ? Math.round(diff * 60) + "m" : diff.toFixed(1) + "h";
+      };
   
+      // 1. Define Headers based on type
+      const headers = ['SN', 'Item Name', 'Company', 'Spec', 'Qty', 'Unit'];
+      if (type === 'ordered') headers.push('Time'); // Add Turnaround column for History
+  
+      // 2. Map Data
+      const tableRows = filtered.map((item, index) => {
+        const row = [
+          index + 1,
+          item.ItemName || "-",
+          item.Company || "-",
+          item.Spec || "-",
+          item.Qty || "-",
+          item.Unit || "-"
+        ];
+        if (type === 'ordered') row.push(getTurnaround(item.Date, item.CompletedAt));
+        return row;
+      });
+  
+      // 3. Generate Table with dynamic column widths
       autoTable(doc, {
         startY: 20,
-        head: [['SN', 'Item Name', 'Company', 'Spec', 'Qty', 'Unit']],
+        head: [headers],
         body: tableRows,
         theme: 'grid',
-        headStyles: { fillColor: [37, 99, 235], fontSize: 9, halign: 'center' },
-        styles: { fontSize: 9, cellPadding: 1.5 },
+        headStyles: { fillColor: [37, 99, 235], fontSize: 8, halign: 'center' },
+        styles: { fontSize: 8, cellPadding: 1.2, overflow: 'linebreak' },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 35 },
-          2: { cellWidth: 23 },
-          3: { cellWidth: 23 },
-          4: { cellWidth: 12, halign: 'center' },
-          5: { cellWidth: 25, halign: 'center' }
+          0: { cellWidth: 8, halign: 'center' }, // SN
+          1: { cellWidth: 32 },                 // Item
+          2: { cellWidth: 20 },                 // Company
+          3: { cellWidth: 20 },                 // Spec
+          4: { cellWidth: 10, halign: 'center' }, // Qty
+          5: { cellWidth: 18, halign: 'center' }, // Unit
+          6: { cellWidth: 15, halign: 'center' }  // Turnaround (if exists)
         },
-        margin: { left: 10, right: 10 }
+        margin: { left: 8, right: 8 }
       });
   
       window.open(doc.output('bloburl'), '_blank');
-    } catch (e) { alert("Print failed: " + e.message); }
+    } catch (e) { 
+      console.error(e);
+      alert("Print failed: " + e.message); 
+    }
   };
 
   const completeOrder = async (item) => {
@@ -96,6 +121,20 @@ export default function App() {
       });
       setTimeout(() => fetchData(), 1000);
     } catch (e) { alert("Error updating sheet."); }
+    setLoading(false);
+  };
+
+  const deleteOrder = async (item) => {
+    if (!window.confirm(`Delete ${item.ItemName} forever?`)) return;
+    setLoading(true);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ action: 'delete', itemName: item.ItemName, date: item.Date })
+      });
+      setTimeout(() => fetchData(), 1000);
+    } catch (e) { alert("Error deleting row."); }
     setLoading(false);
   };
 
@@ -117,6 +156,7 @@ export default function App() {
           type={view} 
           onComplete={completeOrder} 
           onBulkPrint={handleBulkPrint}
+          onDelete={deleteOrder}
         />
         )}
       </main>
@@ -151,7 +191,7 @@ function NavBtn({ active, onClick, icon, label }) {
 
 function AddForm({ onSave }) {
   const [btnLoading, setBtnLoading] = useState(false);
-  const [form, setForm] = useState({ itemName: '', company: '', spec: '', qty: '', unit: 'packet', shop: 'Seva [S]', owner: 'Hussain' });
+  const [form, setForm] = useState({ itemName: '', company: '', spec: '', qty: '', unit: 'pieces', shop: 'Seva [S]', owner: 'Hussain' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -213,7 +253,7 @@ function AddForm({ onSave }) {
         <div>
           <label className="text-xs font-bold text-gray-400 uppercase">Owner*</label>
           <select className="w-full border-2 border-gray-100 p-3 rounded-xl bg-white" value={form.owner} onChange={e => setForm({...form, owner: e.target.value})}>
-            {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha'].map(n => <option key={n} value={n}>{n}</option>)}
+            {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha', 'Kamlesh', 'Rahul'].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
@@ -225,11 +265,10 @@ function AddForm({ onSave }) {
   );
 }
 
-function ListView({ items, type, onComplete, onBulkPrint }) {
+function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
   const [filterShop, setFilterShop] = useState('All');
   const [filterOwner, setFilterOwner] = useState('All');
 
-  // Filter logic for the UI
   const filtered = items.filter(i => {
     const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
     const matchShop = filterShop === 'All' || i.Shop === filterShop;
@@ -245,6 +284,15 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
     return acc;
   }, {});
 
+  const getCompletionHours = (start, end) => {
+    if (!start || !end || typeof end === 'string' && end === "Done" || end === "undefined") return "---";
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
+    if (isNaN(startTime) || isNaN(endTime)) return "---";
+    const diff = (endTime - startTime) / (1000 * 60 * 60);
+    return diff < 1 ? Math.round(diff * 60) + "m" : diff.toFixed(1) + "h";
+  };
+
   return (
     <div className="space-y-4">
       {/* FILTER PANEL */}
@@ -252,11 +300,7 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Filter Shop</label>
-            <select 
-              className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
-              value={filterShop}
-              onChange={(e) => setFilterShop(e.target.value)}
-            >
+            <select className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
               <option value="All">All Shops</option>
               <option value="Seva [S]">Seva [S]</option>
               <option value="Seva Mart [SM]">Seva Mart [SM]</option>
@@ -265,57 +309,79 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
           </div>
           <div>
             <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Filter Owner</label>
-            <select 
-              className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
-              value={filterOwner}
-              onChange={(e) => setFilterOwner(e.target.value)}
-            >
+            <select className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none" value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)}>
               <option value="All">All Owners</option>
-              {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha'].map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
+              {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha'].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
         </div>
-
-        <button 
-          onClick={() => onBulkPrint(items, type, { shop: filterShop, owner: filterOwner })}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl text-sm font-black shadow-lg active:scale-95 transition-all"
-        >
+        <button onClick={() => onBulkPrint(items, type, { shop: filterShop, owner: filterOwner })} className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl text-sm font-black shadow-lg active:scale-95 transition-all">
           <Printer size={18}/> PRINT FILTERED LIST (A5)
         </button>
       </div>
 
-      {/* List Items */}
       {Object.keys(grouped).map(month => (
         <section key={month}>
-          <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-2">{month}</h4>
-          <div className="space-y-3">
+          <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-2">{month}</h4>
+          <div className="space-y-2">
             {grouped[month].map((item, idx) => (
-              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all hover:border-blue-100">
-                <div className="flex-1">
-                  <h5 className="font-bold text-gray-800 text-lg leading-tight">{item.ItemName}</h5>
-                  <p className="text-sm text-gray-500 font-medium">
-                    {item.Qty} {item.Unit} {item.Company ? `• ${item.Company}` : ''}
-                  </p>
-                  <p className="text-[10px] text-blue-500 font-bold mt-1 uppercase">SHOP: {item.Shop} | BY: {item.Owner}</p>
+              <div key={idx} className="bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                <div className="flex-1 min-w-0 pr-2">
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="font-black text-gray-800 text-base uppercase truncate">{item.ItemName}</h5>
+                    <span className="text-[10px] font-bold text-blue-500 italic truncate opacity-80">{item.Spec ? `(${item.Spec})` : ''}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center mt-1 border-y border-gray-50 py-1">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-bold text-gray-400 uppercase">Company</span>
+                      <span className="text-sm font-bold text-gray-700 truncate max-w-[120px]">{item.Company || "---"}</span>
+                    </div>
+                    <div className="flex flex-col items-end text-right">
+                      <span className="text-[8px] font-bold text-gray-400 uppercase">Quantity</span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
+                        <span className="text-[9px] font-bold text-gray-500 uppercase">{item.Unit}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* FIXED BADGES: Colorful Differentiation */}
+                  <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden flex-wrap">
+                     <span className="text-[8px] font-black text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
+                        {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                     </span>
+                     <span className="text-[8px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 uppercase tracking-tighter">
+                       {item.Shop}
+                     </span>
+                     <span className="text-[8px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase tracking-tighter">
+                       {item.Owner}
+                     </span>
+                     {type === 'ordered' && (
+                       <span className="text-[8px] font-black text-green-700 bg-green-100 px-1.5 py-0.5 rounded border border-green-200">
+                         {getCompletionHours(item.Date, item.CompletedAt)}
+                       </span>
+                     )}
+                  </div>
                 </div>
-                {type === 'toOrder' && (
-                  <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl border border-green-100 hover:bg-green-600 hover:text-white transition-colors">
-                    <Check size={20}/>
-                  </button>
-                )}
+
+                <div className="flex flex-col gap-2 ml-2">
+                  {type === 'toOrder' && (
+                    <>
+                      <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-lg border border-green-100 active:bg-green-600 active:text-white">
+                        <Check size={22} strokeWidth={3}/>
+                      </button>
+                      <button onClick={() => onDelete(item)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-lg border border-red-100 active:bg-red-500 active:text-white">
+                        <span className="font-bold text-lg">×</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </section>
       ))}
-
-      {filtered.length === 0 && (
-        <div className="text-center py-10 bg-white rounded-3xl border-4 border-dashed border-gray-50">
-          <p className="text-gray-300 font-black text-sm uppercase">No items match filters</p>
-        </div>
-      )}
     </div>
   );
 }
