@@ -29,38 +29,46 @@ export default function App() {
   useEffect(() => { if (view !== 'add') fetchData(); }, [view]);
 
   // --- FINAL BULK PRINT LOGIC (A5 Portrait, 9pt font, with SN) ---
-  const handleBulkPrint = (allData, type) => {
+  const handleBulkPrint = (allData, type, activeFilters) => {
     try {
       const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5' });
-      const filtered = allData.filter(i => type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed');
       
-      if (filtered.length === 0) return alert("No items to print!");
-
+      // Filter by Status AND the current UI filters
+      const filtered = allData.filter(i => {
+        const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
+        const matchShop = activeFilters.shop === 'All' || i.Shop === activeFilters.shop;
+        const matchOwner = activeFilters.owner === 'All' || i.Owner === activeFilters.owner;
+        return matchStatus && matchShop && matchOwner;
+      });
+      
+      if (filtered.length === 0) return alert("No items to print for this filter!");
+  
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.text("SEVA STORES - ORDER LIST", 10, 10);
       
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.text(`Type: ${type === 'toOrder' ? 'Pending' : 'History'} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
+      const filterText = `Shop: ${activeFilters.shop} | Owner: ${activeFilters.owner}`;
+      doc.text(`${filterText} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
       doc.line(10, 17, 138, 17);
-
+  
       const tableRows = filtered.map((item, index) => [
-        index + 1, // SN Column
+        index + 1,
         item.ItemName || "-",
         item.Company || "-",
         item.Spec || "-",
         item.Qty || "-",
         item.Unit || "-"
       ]);
-
+  
       autoTable(doc, {
         startY: 20,
         head: [['SN', 'Item Name', 'Company', 'Spec', 'Qty', 'Unit']],
         body: tableRows,
         theme: 'grid',
         headStyles: { fillColor: [37, 99, 235], fontSize: 9, halign: 'center' },
-        styles: { fontSize: 9, cellPadding: 1.5, overflow: 'linebreak' },
+        styles: { fontSize: 9, cellPadding: 1.5 },
         columnStyles: {
           0: { cellWidth: 10, halign: 'center' },
           1: { cellWidth: 35 },
@@ -71,9 +79,8 @@ export default function App() {
         },
         margin: { left: 10, right: 10 }
       });
-
-      const pdfBlobUrl = doc.output('bloburl');
-      window.open(pdfBlobUrl, '_blank');
+  
+      window.open(doc.output('bloburl'), '_blank');
     } catch (e) { alert("Print failed: " + e.message); }
   };
 
@@ -106,16 +113,16 @@ export default function App() {
         
         {(view === 'toOrder' || view === 'ordered') && (
           <ListView 
-            items={items} 
-            type={view} 
-            onComplete={completeOrder} 
-            onBulkPrint={handleBulkPrint} 
-          />
+          items={items} 
+          type={view} 
+          onComplete={completeOrder} 
+          onBulkPrint={handleBulkPrint}
+        />
         )}
       </main>
 
-      {/* FIXED BOTTOM NAVIGATION */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] flex justify-around items-center z-50 h-20 px-2 pb-safe">
+      {/* FIXED BOTTOM NAVIGATION - Blue Theme */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-blue-600 border-t border-blue-700 shadow-[0_-4px_15px_rgba(0,0,0,0.15)] flex justify-around items-center z-50 h-20 px-2 pb-safe">
         <NavBtn active={view === 'add'} onClick={() => setView('add')} icon={<PlusCircle size={24}/>} label="Add" />
         <NavBtn active={view === 'toOrder'} onClick={() => setView('toOrder')} icon={<ShoppingCart size={24}/>} label="To Order" />
         <NavBtn active={view === 'ordered'} onClick={() => setView('ordered')} icon={<History size={24}/>} label="Ordered" />
@@ -126,11 +133,16 @@ export default function App() {
 
 function NavBtn({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-200 ${active ? 'text-blue-600 scale-105' : 'text-gray-400'}`}>
-      <div className={`transition-colors duration-200 ${active ? 'bg-blue-50 p-2 rounded-xl' : 'p-2'}`}>
+    <button 
+      onClick={onClick} 
+      className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-200 ${
+        active ? 'text-white scale-105' : 'text-blue-200'
+      }`}
+    >
+      <div className={`transition-colors duration-200 ${active ? 'bg-blue-500 p-2 rounded-xl shadow-inner' : 'p-2'}`}>
         {icon}
       </div>
-      <span className={`text-[10px] font-bold uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-60'}`}>
+      <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-70'}`}>
         {label}
       </span>
     </button>
@@ -214,7 +226,16 @@ function AddForm({ onSave }) {
 }
 
 function ListView({ items, type, onComplete, onBulkPrint }) {
-  const filtered = items.filter(i => type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed');
+  const [filterShop, setFilterShop] = useState('All');
+  const [filterOwner, setFilterOwner] = useState('All');
+
+  // Filter logic for the UI
+  const filtered = items.filter(i => {
+    const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
+    const matchShop = filterShop === 'All' || i.Shop === filterShop;
+    const matchOwner = filterOwner === 'All' || i.Owner === filterOwner;
+    return matchStatus && matchShop && matchOwner;
+  });
 
   const grouped = filtered.reduce((acc, item) => {
     const date = item.Date ? new Date(item.Date) : new Date();
@@ -225,29 +246,57 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
   }, {});
 
   return (
-    <div className="space-y-6">
-      {filtered.length > 0 && (
-        <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-md border border-blue-50">
+    <div className="space-y-4">
+      {/* FILTER PANEL */}
+      <div className="bg-white p-4 rounded-2xl shadow-md border border-blue-50 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <h3 className="font-black text-gray-800">{type === 'toOrder' ? 'Pending List' : 'History'}</h3>
-            <p className="text-xs text-gray-400">{filtered.length} Items found</p>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Filter Shop</label>
+            <select 
+              className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
+              value={filterShop}
+              onChange={(e) => setFilterShop(e.target.value)}
+            >
+              <option value="All">All Shops</option>
+              <option value="Seva [S]">Seva [S]</option>
+              <option value="Seva Mart [SM]">Seva Mart [SM]</option>
+              <option value="Seva Super Store [SSS]">Seva Super Store [SSS]</option>
+            </select>
           </div>
-          <button onClick={() => onBulkPrint(items, type)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700">
-            <Printer size={16}/> Print A5 List
-          </button>
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Filter Owner</label>
+            <select 
+              className="w-full bg-gray-50 border-none p-2 rounded-xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-100"
+              value={filterOwner}
+              onChange={(e) => setFilterOwner(e.target.value)}
+            >
+              <option value="All">All Owners</option>
+              {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha'].map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
         </div>
-      )}
 
+        <button 
+          onClick={() => onBulkPrint(items, type, { shop: filterShop, owner: filterOwner })}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-xl text-sm font-black shadow-lg active:scale-95 transition-all"
+        >
+          <Printer size={18}/> PRINT FILTERED LIST (A5)
+        </button>
+      </div>
+
+      {/* List Items */}
       {Object.keys(grouped).map(month => (
         <section key={month}>
           <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 px-2">{month}</h4>
           <div className="space-y-3">
             {grouped[month].map((item, idx) => (
-              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all hover:border-blue-100 hover:shadow">
+              <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all hover:border-blue-100">
                 <div className="flex-1">
                   <h5 className="font-bold text-gray-800 text-lg leading-tight">{item.ItemName}</h5>
                   <p className="text-sm text-gray-500 font-medium">
-                    {item.Qty} {item.Unit} {item.Company ? `• ${item.Company}` : ''} {item.Spec ? `• ${item.Spec}` : ''}
+                    {item.Qty} {item.Unit} {item.Company ? `• ${item.Company}` : ''}
                   </p>
                   <p className="text-[10px] text-blue-500 font-bold mt-1 uppercase">SHOP: {item.Shop} | BY: {item.Owner}</p>
                 </div>
@@ -263,9 +312,8 @@ function ListView({ items, type, onComplete, onBulkPrint }) {
       ))}
 
       {filtered.length === 0 && (
-        <div className="text-center py-20 bg-white rounded-3xl border-4 border-dashed border-gray-50">
-          <Package className="text-gray-100 mx-auto mb-3" size={60} />
-          <p className="text-gray-300 font-black text-xl">All Clear!</p>
+        <div className="text-center py-10 bg-white rounded-3xl border-4 border-dashed border-gray-50">
+          <p className="text-gray-300 font-black text-sm uppercase">No items match filters</p>
         </div>
       )}
     </div>
