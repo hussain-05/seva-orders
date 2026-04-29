@@ -9,7 +9,7 @@ import logo from './assets/seva-logo.png';
 // ==========================================
 // 1. SET YOUR API URL HERE
 // ==========================================
-const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOdDY-fkKOo_LWG-U3DUBrELDZ1RRNvZlgkn1ZYBxfBeCvUOhRbtPCcG16WOT8GhlX/exec";
 
 export default function App() {
   const [view, setView] = useState('add'); 
