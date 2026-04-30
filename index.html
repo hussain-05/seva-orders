@@ -1,13 +1,23 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 1. The Favicon (Assuming logo is in public folder) -->
+    <link rel="icon" type="image/svg+xml" href="/seva-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>seva-orders</title>
+    
+    <!-- 3. The Website Name -->
+    <title>Seva Orders</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 2. This shows while the app is loading or if internet is slow -->
+      <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #2563eb; font-family: sans-serif;">
+        <img src="/seva-logo.png" alt="Seva Logo" style="width: 120px; margin-bottom: 20px;" />
+        <div style="color: white; font-weight: 900; letter-spacing: -1px; font-size: 24px;">SEVA ORDERS</div>
+        <div style="color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 10px; font-weight: bold; text-transform: uppercase;">Connecting to Shop Data...</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

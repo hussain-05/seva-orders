@@ -83,10 +83,20 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(SCRIPT_URL);
+      // Adding a timeout check
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+  
+      const response = await fetch(SCRIPT_URL, { signal: controller.signal });
+      clearTimeout(id);
+      
       const data = await response.json();
-      setItems(Array.isArray(data) ? data : []);
-    } catch (error) { console.error(error); }
+      setItems(data);
+    } catch (e) {
+      console.error("Connection failed", e);
+      // Alert the user if it's a network/timeout issue
+      alert("Connection to Seva Server failed. Please check your internet.");
+    }
     setLoading(false);
   };
 
