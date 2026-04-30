@@ -30,7 +30,8 @@ const APPROVED_USERS = [
   "badshahburhanuddin010@gmail.com",
   "namdevekamlesh@gmail.com",
   "rahulsendhav5272@gmail.com",
-  "Shabbarbadshah5253@gmail.com"
+  "Shabbarbadshah5253@gmail.com",
+  "hussainseva523@gmail,.com"
   // Add others as they sign up
 ];
 
