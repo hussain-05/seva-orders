@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import logo from './assets/seva-logo.png'; 
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6O11PWbadVnbEHlOEp66EGNpEoIJU5I3stt2Ve0i__eKABz3y0hMX2Tu43Eko1vWm/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxoMAIxLRTOY3GpdYIXvFnsoEk5s391_5gIAET6OEV62i6Lu5KqLV78OMhwC8xplfw_/exec";
 
 // List of emails allowed to see data. 
 // Add your email and the team's emails here.
@@ -30,10 +30,22 @@ const APPROVED_USERS = [
   "badshahburhanuddin010@gmail.com",
   "namdevekamlesh@gmail.com",
   "rahulsendhav5272@gmail.com",
-  "Shabbarbadshah5253@gmail.com",
-  "hussainseva523@gmail,.com"
+  "Shabbarbadshah5253@gmail.com"
   // Add others as they sign up
 ];
+
+const USER_MAP = {
+  "hussain.badshah2605@gmail.com": "Hussain",
+  "ali_lucky@yahoo.com": "Ali",
+  "burhanuddinbadshah06@gmail.com": "Burhan",
+  "sevataha@gmail.com": "Taha",
+  "mohammed.badshah11@gmail.com": "Mohammed",
+  "huzefabadshah52@gmail.com": "Huzefa",
+  "badshahburhanuddin010@gmail.com": "Bee",
+  "namdevekamlesh@gmail.com": "Kamlesh",
+  "rahulsendhav5272@gmail.com": "Rahul",
+  "shabbarbadshah5253@gmail.com": "Shabbar"
+};
 
 export default function App() {
   // Auth States
@@ -84,49 +96,129 @@ export default function App() {
 
   const handleBulkPrint = (allData, type, activeFilters) => {
     try {
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5' });
+      const doc = new jsPDF({ 
+        orientation: 'p', 
+        unit: 'mm', 
+        format: 'a5' 
+      });
+  
+      // 1. Filter logic including the new Requestor filter
       const filtered = allData.filter(i => {
         const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
         const matchShop = activeFilters.shop === 'All' || i.Shop === activeFilters.shop;
         const matchOwner = activeFilters.owner === 'All' || i.Owner === activeFilters.owner;
-        return matchStatus && matchShop && matchOwner;
+        const matchReq = activeFilters.requestor === 'All' || i.Requestor === activeFilters.requestor;
+        return matchStatus && matchShop && matchOwner && matchReq;
       });
-      if (filtered.length === 0) return alert("No items to print!");
-      doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("SEVA STORES - ORDER LIST", 10, 10);
-      doc.setFontSize(8); doc.setFont("helvetica", "normal");
-      doc.text(`Shop: ${activeFilters.shop} | Owner: ${activeFilters.owner} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
+      
+      if (filtered.length === 0) return alert("No items to print for this filter!");
+  
+      // 2. Header Logic
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("SEVA STORES - ORDER LIST", 10, 10);
+      
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      // Display all active filters in the PDF header
+      const filterText = `Shop: ${activeFilters.shop} | Owner: ${activeFilters.owner} | Requestor: ${activeFilters.requestor}`;
+      doc.text(`${filterText} | Date: ${new Date().toLocaleDateString()}`, 10, 15);
       doc.line(10, 17, 138, 17);
+  
+      // 3. Helper for Turnaround calculation
       const getTurnaround = (start, end) => {
         if (!start || !end || end === "Done" || end === "undefined") return "-";
         const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60);
         return diff < 1 ? Math.round(diff * 60) + "m" : diff.toFixed(1) + "h";
       };
+  
+      // 4. Define Table Headers
       const headers = ['SN', 'Item Name', 'Company', 'Spec', 'Qty', 'Unit'];
       if (type === 'ordered') headers.push('Time');
+  
+      // 5. Map Data to Table Rows
       const tableRows = filtered.map((item, index) => {
-        const row = [index + 1, item.ItemName || "-", item.Company || "-", item.Spec || "-", item.Qty || "-", item.Unit || "-"];
+        const row = [
+          index + 1,
+          item.ItemName || "-",
+          item.Company || "-",
+          item.Spec || "-",
+          item.Qty || "-",
+          item.Unit || "-"
+        ];
         if (type === 'ordered') row.push(getTurnaround(item.Date, item.CompletedAt));
         return row;
       });
+  
+      // 6. Generate Table with dynamic column widths for A5
       autoTable(doc, {
-        startY: 20, head: [headers], body: tableRows, theme: 'grid',
+        startY: 20,
+        head: [headers],
+        body: tableRows,
+        theme: 'grid',
         headStyles: { fillColor: [37, 99, 235], fontSize: 8, halign: 'center' },
-        styles: { fontSize: 8, cellPadding: 1.2 },
-        columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 32 }, 4: { cellWidth: 10 }, 6: { cellWidth: 15 } },
+        styles: { fontSize: 8, cellPadding: 1.2, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 8, halign: 'center' }, // SN
+          1: { cellWidth: 32 },                 // Item
+          2: { cellWidth: 20 },                 // Company
+          3: { cellWidth: 20 },                 // Spec
+          4: { cellWidth: 10, halign: 'center' }, // Qty
+          5: { cellWidth: 18, halign: 'center' }, // Unit
+          6: { cellWidth: 15, halign: 'center' }  // Turnaround (if exists)
+        },
         margin: { left: 8, right: 8 }
       });
+  
+      // 7. Output PDF
       window.open(doc.output('bloburl'), '_blank');
-    } catch (e) { alert("Print failed."); }
+    } catch (e) { 
+      console.error(e);
+      alert("Print failed: " + e.message); 
+    }
   };
 
   const completeOrder = async (item) => {
     if (!window.confirm(`Restock ${item.ItemName}?`)) return;
     setLoading(true);
+  
+    // 1. Calculate time
+    const now = new Date();
+    const startTime = new Date(item.Date);
+    const diffInHours = (now.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const turnaround = diffInHours < 1 
+      ? Math.round(diffInHours * 60) + "m" 
+      : diffInHours.toFixed(1) + "h";
+  
+    // 2. Prepare the payload
+    const payload = { 
+      action: 'complete', 
+      itemName: item.ItemName, 
+      date: item.Date,
+      completionTime: turnaround 
+    };
+  
     try {
-      await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'complete', itemName: item.ItemName, date: item.Date }) });
-      setTimeout(() => fetchData(), 1000);
-    } catch (e) { alert("Error."); }
-    setLoading(false);
+      // We use text/plain to avoid CORS preflight issues with Google Scripts
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      });
+  
+      // 3. Force a local refresh after 1.5 seconds to give Google time to process
+      setTimeout(() => {
+        fetchData();
+        alert(`Marked as Complete! Time: ${turnaround}`);
+      }, 1500);
+      
+    } catch (e) { 
+      console.error("Fetch Error:", e);
+      alert("Network error. Check your internet."); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   const deleteOrder = async (item) => {
@@ -183,7 +275,7 @@ export default function App() {
 
       <main className="p-4 max-w-2xl mx-auto">
         {loading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-blue-600" /></div>}
-        {view === 'add' && <AddForm onSave={() => setView('toOrder')} />}
+        {view === 'add' && <AddForm onSave={() => setView('toOrder')} currentUserEmail={user.email} />}
         {(view === 'toOrder' || view === 'ordered') && (
           <ListView items={items} type={view} onComplete={completeOrder} onBulkPrint={handleBulkPrint} onDelete={deleteOrder} />
         )}
@@ -209,23 +301,38 @@ function NavBtn({ active, onClick, icon, label }) {
   );
 }
 
-function AddForm({ onSave }) {
+function AddForm({ onSave, currentUserEmail }) { // Add currentUserEmail prop
   const [btnLoading, setBtnLoading] = useState(false);
   const [form, setForm] = useState({ itemName: '', company: '', spec: '', qty: '', unit: 'pieces', shop: 'Seva [S]', owner: 'Hussain' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setBtnLoading(true);
+    
+    // Force lowercase to ensure the match works
+    const emailKey = (currentUserEmail || "").toLowerCase().trim();
+    const requestorName = USER_MAP[emailKey] || "Unknown Staff";
+  
     try {
-      await fetch(SCRIPT_URL, {
+      const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
-        body: JSON.stringify({ action: 'add', ...form })
+        mode: 'no-cors', // Google Apps Script requires no-cors
+        body: JSON.stringify({ 
+          action: 'add', 
+          ...form, 
+          requestor: requestorName 
+        })
       });
-      alert("Added to Seva List!");
+      
+      // Success! Reset and notify
+      alert(`Order added by ${requestorName}`);
       setForm({ ...form, itemName: '', company: '', spec: '', qty: '' });
-    } catch (e) { alert("Failed to connect."); }
-    setBtnLoading(false);
+    } catch (e) { 
+      console.error(e);
+      alert("Connection error. Try again."); 
+    } finally {
+      setBtnLoading(false);
+    }
   };
 
   // Define a nice light grey border style for all inputs
@@ -291,12 +398,16 @@ function AddForm({ onSave }) {
 function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
   const [filterShop, setFilterShop] = useState('All');
   const [filterOwner, setFilterOwner] = useState('All');
+  const [filterReq, setFilterReq] = useState('All');
+
   const filtered = items.filter(i => {
     const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
     const matchShop = filterShop === 'All' || i.Shop === filterShop;
     const matchOwner = filterOwner === 'All' || i.Owner === filterOwner;
-    return matchStatus && matchShop && matchOwner;
+    const matchReq = filterReq === 'All' || (i.Requestor && i.Requestor === filterReq);
+    return matchStatus && matchShop && matchOwner && matchReq;
   });
+
   const grouped = filtered.reduce((acc, item) => {
     const date = item.Date ? new Date(item.Date) : new Date();
     const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -304,70 +415,114 @@ function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
     acc[month].push(item);
     return acc;
   }, {});
+
   const getHours = (s, e) => {
     if (!s || !e || e === "Done" || e === "undefined") return "---";
     const d = (new Date(e).getTime() - new Date(s).getTime()) / (1000 * 60 * 60);
     return d < 1 ? Math.round(d * 60) + "m" : d.toFixed(1) + "h";
   };
+
   return (
     <div className="space-y-4">
+      {/* FILTER PANEL */}
       <div className="bg-white p-4 rounded-2xl shadow-md border border-blue-50 space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <select className="w-full bg-gray-50 p-2 rounded-xl text-sm font-bold" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
+        <div className="grid grid-cols-3 gap-2">
+          {/* Bigger Font in Dropdowns (text-xs instead of text-[10px]) */}
+          <select className="bg-gray-50 p-2 rounded-xl text-xs font-bold outline-none" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
             <option value="All">All Shops</option>
             <option value="Seva [S]">Seva [S]</option>
             <option value="Seva Mart [SM]">Seva Mart [SM]</option>
             <option value="Seva Super Store [SSS]">Seva Super Store [SSS]</option>
           </select>
-          <select className="w-full bg-gray-50 p-2 rounded-xl text-sm font-bold" value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)}>
+          <select className="bg-gray-50 p-2 rounded-xl text-xs font-bold outline-none" value={filterOwner} onChange={(e) => setFilterOwner(e.target.value)}>
             <option value="All">All Owners</option>
-            {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha'].map(n => <option key={n} value={n}>{n}</option>)}
+            {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha', 'Kamlesh', 'Rahul'].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select className="bg-gray-50 p-2 rounded-xl text-xs font-bold outline-none" value={filterReq} onChange={(e) => setFilterReq(e.target.value)}>
+            <option value="All">All Requestors</option>
+            {['Hussain', 'Ali', 'Burhan', 'Taha', 'Mohammed', 'Huzefa', 'Bee', 'Kamlesh', 'Rahul', 'Shabbar'].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
-        <button onClick={() => onBulkPrint(items, type, { shop: filterShop, owner: filterOwner })} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black">PRINT FILTERED LIST (A5)</button>
+        <button onClick={() => onBulkPrint(items, type, { shop: filterShop, owner: filterOwner, requestor: filterReq })} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs shadow-md active:scale-95 transition-all">
+          <Printer size={16} className="inline mr-2"/> PRINT FILTERED LIST (A5)
+        </button>
       </div>
-      {Object.keys(grouped).map(month => (
-        <section key={month}>
-          <h4 className="text-[10px] font-black text-gray-400 uppercase mb-2 px-2">{month}</h4>
-          <div className="space-y-2">
-            {grouped[month].map((item, idx) => (
-              <div key={idx} className="bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center transition-all">
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="flex items-baseline gap-2">
-                    <h5 className="font-black text-gray-800 text-base uppercase truncate">{item.ItemName}</h5>
-                    <span className="text-[10px] font-bold text-blue-500 italic truncate">{item.Spec ? `(${item.Spec})` : ''}</span>
-                  </div>
-                  <div className="flex justify-between items-center mt-1 border-y border-gray-50 py-1">
-                    <div className="flex flex-col">
-                      <span className="text-[8px] font-bold text-gray-400 uppercase">Company</span>
-                      <span className="text-sm font-bold text-gray-700 truncate max-w-[120px]">{item.Company || "---"}</span>
-                    </div>
-                    <div className="flex flex-col items-end text-right">
-                      <span className="text-[8px] font-bold text-gray-400 uppercase">Quantity</span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
-                        <span className="text-[9px] font-bold text-gray-500 uppercase">{item.Unit}</span>
+
+      {Object.keys(grouped).length === 0 ? (
+        <div className="text-center py-10 text-gray-400 font-bold uppercase text-xs tracking-widest">No items found</div>
+      ) : (
+        Object.keys(grouped).map(month => (
+          <section key={month}>
+            <h4 className="text-[10px] font-black text-gray-400 uppercase mb-2 px-2 tracking-widest">{month}</h4>
+            <div className="space-y-3">
+              {grouped[month].map((item, idx) => (
+                <div key={idx} className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all relative">
+                  <div className="flex-1 space-y-2"> {/* Reduced spacing for perfect card height */}
+                    
+                    {/* Header Row */}
+                    <div className="flex justify-between items-start border-b border-gray-50 pb-1.5">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <h5 className="font-black text-gray-800 text-base uppercase tracking-tight leading-tight">{item.ItemName}</h5>
+                        <span className="text-[10px] font-bold text-blue-500 italic leading-tight">{item.Spec ? `(${item.Spec})` : ''}</span>
+                      </div>
+                      {/* Owner Details Right Aligned */}
+                      <div className="text-right flex flex-col justify-start">
+                        <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest leading-none mb-0.5">Owner</span>
+                        <span className="text-xs font-bold text-gray-700 uppercase leading-none">{item.Owner}</span>
                       </div>
                     </div>
+
+                    {/* Main Details Grid */}
+                    <div className="grid grid-cols-2 gap-x-4 items-center">
+                      <div className="flex flex-col border-r border-gray-50">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none mb-1">Company</span>
+                        <span className="text-sm font-bold text-gray-800 truncate leading-none">{item.Company || "-"}</span>
+                      </div>
+                      {/* Quantity Details Right Aligned */}
+                      <div className="flex flex-col items-end text-right">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Quantity</span>
+                        <div className="flex items-baseline gap-1 justify-end">
+                            <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
+                            <span className="text-[9px] font-bold text-gray-500 uppercase leading-none">{item.Unit}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Badge Row with Top Light Grey Line */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                      <span className="text-[8px] font-black bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200 uppercase">
+                        {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                      </span>
+                      <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 uppercase">{item.Shop}</span>
+                      <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 uppercase">
+                        Requestor: {item.Requestor || "---"}
+                      </span>
+                      {type === 'ordered' && (
+                        <span className="text-[8px] font-black bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100 uppercase">
+                          {getHours(item.Date, item.CompletedAt)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden flex-wrap">
-                     <span className="text-[8px] font-black bg-gray-100 px-1.5 py-0.5 rounded">{new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
-                     <span className="text-[8px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100 uppercase">{item.Shop}</span>
-                     <span className="text-[8px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase">{item.Owner}</span>
-                     {type === 'ordered' && <span className="text-[8px] font-black text-green-700 bg-green-100 px-1.5 py-0.5 rounded border border-green-200">{getHours(item.Date, item.CompletedAt)}</span>}
-                  </div>
+
+                  {/* Actions Bar - Middle Aligned to Card */}
+                  {type === 'toOrder' && (
+                    <div className="flex flex-col gap-2 ml-3 self-center">
+                      {/* Perfect Square Rounded Buttons */}
+                      <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl border border-green-100 active:bg-green-600 active:text-white transition-all shadow-sm">
+                        <Check size={20} strokeWidth={3}/>
+                      </button>
+                      <button onClick={() => onDelete(item)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-xl border border-red-100 active:bg-red-500 active:text-white transition-all shadow-sm font-bold text-xl">
+                        ×
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {type === 'toOrder' && (
-                  <div className="flex flex-col gap-2 ml-2">
-                    <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-lg border border-green-100"><Check size={20} strokeWidth={3}/></button>
-                    <button onClick={() => onDelete(item)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-lg border border-red-100 font-bold text-lg">×</button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+              ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }
