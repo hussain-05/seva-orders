@@ -22,8 +22,15 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6O11PWbadVnbEHlOEp
 // Add your email and the team's emails here.
 const APPROVED_USERS = [
   "hussain.badshah2605@gmail.com", 
-  "hussainseva523@gmail.com",
-  "ali_lucky@yahoo.com"
+  "ali_lucky@yahoo.com",
+  "burhanuddinbadshah06@gmail.com",
+  "Sevataha@gmail.com",
+  "Mohammed.badshah11@gmail.com",
+  "Huzefabadshah52@gmail.com",
+  "badshahburhanuddin010@gmail.com",
+  "namdevekamlesh@gmail.com",
+  "rahulsendhav5272@gmail.com",
+  "Shabbarbadshah5253@gmail.com"
   // Add others as they sign up
 ];
 
