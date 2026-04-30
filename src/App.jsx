@@ -24,13 +24,13 @@ const APPROVED_USERS = [
   "hussain.badshah2605@gmail.com", 
   "ali_lucky@yahoo.com",
   "burhanuddinbadshah06@gmail.com",
-  "Sevataha@gmail.com",
-  "Mohammed.badshah11@gmail.com",
-  "Huzefabadshah52@gmail.com",
+  "sevataha@gmail.com",
+  "mohammed.badshah11@gmail.com",
+  "huzefabadshah52@gmail.com",
   "badshahburhanuddin010@gmail.com",
   "namdevekamlesh@gmail.com",
   "rahulsendhav5272@gmail.com",
-  "Shabbarbadshah5253@gmail.com"
+  "shabbarbadshah5253@gmail.com"
   // Add others as they sign up
 ];
 
