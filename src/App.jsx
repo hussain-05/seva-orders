@@ -277,7 +277,7 @@ export default function App() {
         {loading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-blue-600" /></div>}
         {view === 'add' && <AddForm onSave={() => setView('toOrder')} currentUserEmail={user.email} />}
         {(view === 'toOrder' || view === 'ordered') && (
-          <ListView items={items} type={view} onComplete={completeOrder} onBulkPrint={handleBulkPrint} onDelete={deleteOrder} />
+          <ListView items={items} type={view} onComplete={completeOrder} onBulkPrint={handleBulkPrint} onDelete={deleteOrder} currentUserEmail={user.email} />
         )}
       </main>
 
@@ -395,10 +395,22 @@ function AddForm({ onSave, currentUserEmail }) { // Add currentUserEmail prop
   );
 }
 
-function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
+function ListView({ items, type, onComplete, onBulkPrint, onDelete, currentUserEmail }) {
   const [filterShop, setFilterShop] = useState('All');
   const [filterOwner, setFilterOwner] = useState('All');
   const [filterReq, setFilterReq] = useState('All');
+
+  // Helper to verify names based on logged-in email
+  const getLoggedInName = () => {
+    const emailKey = (currentUserEmail || "").toLowerCase().trim();
+    return USER_MAP[emailKey];
+  };
+
+  // Logic: Only the assigned Owner can complete
+  const canComplete = (ownerName) => getLoggedInName() === ownerName;
+
+  // Logic: Only the original Requestor can delete
+  const canDelete = (requestorName) => getLoggedInName() === requestorName;
 
   const filtered = items.filter(i => {
     const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
@@ -427,7 +439,6 @@ function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
       {/* FILTER PANEL */}
       <div className="bg-white p-4 rounded-2xl shadow-md border border-blue-50 space-y-3">
         <div className="grid grid-cols-3 gap-2">
-          {/* Bigger Font in Dropdowns (text-xs instead of text-[10px]) */}
           <select className="bg-gray-50 p-2 rounded-xl text-xs font-bold outline-none" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
             <option value="All">All Shops</option>
             <option value="Seva [S]">Seva [S]</option>
@@ -452,73 +463,86 @@ function ListView({ items, type, onComplete, onBulkPrint, onDelete }) {
         <div className="text-center py-10 text-gray-400 font-bold uppercase text-xs tracking-widest">No items found</div>
       ) : (
         Object.keys(grouped).map(month => (
-          <section key={month}>
-            <h4 className="text-[10px] font-black text-gray-400 uppercase mb-2 px-2 tracking-widest">{month}</h4>
+          <section key={month} className="mb-6">
+            <h4 className="text-[10px] font-black text-gray-400 uppercase mb-3 px-2 tracking-widest">{month}</h4>
             <div className="space-y-3">
-              {grouped[month].map((item, idx) => (
-                <div key={idx} className="bg-white px-5 py-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all relative">
-                  <div className="flex-1 space-y-2"> {/* Reduced spacing for perfect card height */}
-                    
-                    {/* Header Row */}
-                    <div className="flex justify-between items-start border-b border-gray-50 pb-1.5">
-                      <div className="flex flex-wrap items-baseline gap-x-2">
-                        <h5 className="font-black text-gray-800 text-base uppercase tracking-tight leading-tight">{item.ItemName}</h5>
-                        <span className="text-[10px] font-bold text-blue-500 italic leading-tight">{item.Spec ? `(${item.Spec})` : ''}</span>
-                      </div>
-                      {/* Owner Details Right Aligned */}
-                      <div className="text-right flex flex-col justify-start">
-                        <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest leading-none mb-0.5">Owner</span>
-                        <span className="text-xs font-bold text-gray-700 uppercase leading-none">{item.Owner}</span>
-                      </div>
-                    </div>
+              {grouped[month].map((item, idx) => {
+                const isAssignedOwner = canComplete(item.Owner);
+                const isRequestor = canDelete(item.Requestor);
 
-                    {/* Main Details Grid */}
-                    <div className="grid grid-cols-2 gap-x-4 items-center">
-                      <div className="flex flex-col border-r border-gray-50">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none mb-1">Company</span>
-                        <span className="text-sm font-bold text-gray-800 truncate leading-none">{item.Company || "-"}</span>
-                      </div>
-                      {/* Quantity Details Right Aligned */}
-                      <div className="flex flex-col items-end text-right">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider leading-none mb-0.5">Quantity</span>
-                        <div className="flex items-baseline gap-1 justify-end">
-                            <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
-                            <span className="text-[9px] font-bold text-gray-500 uppercase leading-none">{item.Unit}</span>
+                return (
+                  <div key={idx} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all">
+                    
+                    <div className="flex-1 space-y-3 pr-4">
+                      <div className="flex justify-between items-start border-b border-gray-50 pb-2">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <h5 className="font-black text-gray-800 text-base uppercase tracking-tight">{item.ItemName}</h5>
+                          <span className="text-[10px] font-bold text-blue-500 italic">{item.Spec ? `(${item.Spec})` : ''}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest block leading-none mb-1">Owner</span>
+                          <span className="text-xs font-bold text-gray-700 uppercase leading-none">{item.Owner}</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Badge Row with Top Light Grey Line */}
-                    <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                      <span className="text-[8px] font-black bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200 uppercase">
-                        {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                      </span>
-                      <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 uppercase">{item.Shop}</span>
-                      <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 uppercase">
-                        Requestor: {item.Requestor || "---"}
-                      </span>
-                      {type === 'ordered' && (
-                        <span className="text-[8px] font-black bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100 uppercase">
-                          {getHours(item.Date, item.CompletedAt)}
+                      <div className="grid grid-cols-2 gap-x-4 items-center">
+                        <div className="flex flex-col border-r border-gray-50">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Company</span>
+                          <span className="text-sm font-bold text-gray-800 truncate">{item.Company || "-"}</span>
+                        </div>
+                        <div className="flex flex-col items-end text-right">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Quantity</span>
+                          <div className="flex items-baseline gap-1">
+                              <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
+                              <span className="text-[9px] font-bold text-gray-500 uppercase leading-none">{item.Unit}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 pt-2.5 border-t border-gray-100">
+                        <span className="text-[8px] font-black bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200 uppercase">
+                          {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                         </span>
-                      )}
+                        <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 uppercase">{item.Shop}</span>
+                        <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 uppercase">
+                          Requestor: {item.Requestor || "---"}
+                        </span>
+                        {type === 'ordered' && (
+                          <span className="text-[8px] font-black bg-green-50 text-green-600 px-2 py-1 rounded border border-green-100 uppercase">
+                            {getHours(item.Date, item.CompletedAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Actions Bar - Middle Aligned to Card */}
-                  {type === 'toOrder' && (
-                    <div className="flex flex-col gap-2 ml-3 self-center">
-                      {/* Perfect Square Rounded Buttons */}
-                      <button onClick={() => onComplete(item)} className="w-10 h-10 flex items-center justify-center bg-green-50 text-green-600 rounded-xl border border-green-100 active:bg-green-600 active:text-white transition-all shadow-sm">
-                        <Check size={20} strokeWidth={3}/>
-                      </button>
-                      <button onClick={() => onDelete(item)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-xl border border-red-100 active:bg-red-500 active:text-white transition-all shadow-sm font-bold text-xl">
-                        ×
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    {type === 'toOrder' && (
+                      <div className="flex flex-col gap-2 ml-1">
+                        <button 
+                          onClick={() => isAssignedOwner ? onComplete(item) : alert(`Only ${item.Owner} can complete this.`)} 
+                          className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-sm ${
+                            isAssignedOwner 
+                              ? "bg-green-50 text-green-600 border-green-100 active:bg-green-600 active:text-white" 
+                              : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50"
+                          }`}
+                        >
+                          <Check size={20} strokeWidth={3}/>
+                        </button>
+
+                        <button 
+                          onClick={() => isRequestor ? onDelete(item) : alert(`Only ${item.Requestor} can delete this request.`)} 
+                          className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-sm ${
+                            isRequestor 
+                              ? "bg-red-50 text-red-500 border-red-100 active:bg-red-500 active:text-white" 
+                              : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50"
+                          }`}
+                        >
+                          <span className="font-bold text-xl">×</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
         ))
