@@ -13,9 +13,9 @@ import {
   PlusCircle, ShoppingCart, History, Printer, 
   Check, Loader2, Package, LogOut, Lock 
 } from 'lucide-react';
-import logo from './assets/seva-logo.png'; 
+import logo from './assets/seva-logo.png';
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxoMAIxLRTOY3GpdYIXvFnsoEk5s391_5gIAET6OEV62i6Lu5KqLV78OMhwC8xplfw_/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby5JIsmzifcEIqKJxNGX5mza4dnL8AQKto2phiDbpkqPlOU30g4LEVTtSq-9xtz2WhC/exec";
 
 // List of emails allowed to see data. 
 // Add your email and the team's emails here.
@@ -102,6 +102,32 @@ export default function App() {
   useEffect(() => { 
     if (user && view !== 'add') fetchData(); 
   }, [view, user]);
+
+  const sendWhatsApp = () => {
+    if (!lastOrder) return;
+    const { itemName, qty, unit, shop, owner, requestor, company, spec } = lastOrder;
+    const phone = PHONE_MAP[owner] || "910000000000";
+    
+    // Using simple text characters instead of emojis to avoid '?' issues
+    const messageText = 
+`# *NEW REQUIREMENT*
+--------------------------------
+*Item:* ${itemName.toUpperCase()} ${spec ? `(${spec})` : ''}
+*Qty:* ${qty} ${unit}
+*Company:* ${company || '-'}
+*Shop:* ${shop}
+
+*Assigned to:* ${owner.toUpperCase()}
+*Requested by:* ${requestor.toUpperCase()}
+--------------------------------
+* *Please check the Seva Orders app to mark as completed.*`;
+
+    // Standard encoding for line breaks and spaces
+    const encodedMessage = encodeURIComponent(messageText);
+
+    window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
+    setShowSuccess(false); 
+  };
 
   const handleBulkPrint = (allData, type, activeFilters) => {
     try {
@@ -310,70 +336,155 @@ function NavBtn({ active, onClick, icon, label }) {
   );
 }
 
-function AddForm({ onSave, currentUserEmail }) { // Add currentUserEmail prop
+function AddForm({ onSave, currentUserEmail }) {
   const [btnLoading, setBtnLoading] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [lastOrder, setLastOrder] = useState(null);
   const [form, setForm] = useState({ itemName: '', company: '', spec: '', qty: '', unit: 'pieces', shop: 'Seva [S]', owner: 'Hussain' });
+
+  const PHONE_MAP = {
+    "Hussain": "919522578633",
+    "Ali": "919977152786",
+    "Burhan": "919893579297",
+    "Taha": "919826290187",
+    "Mohammed": "919340437853",
+    "Huzefa": "918319870008",
+    "Shabbar": "919754752786",
+    "Kamlesh": "916261121637",
+    "Rahul": "918817015172"
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (btnLoading) return;
     setBtnLoading(true);
     
-    // Force lowercase to ensure the match works
     const emailKey = (currentUserEmail || "").toLowerCase().trim();
     const requestorName = USER_MAP[emailKey] || "Unknown Staff";
+    
+    const orderData = { 
+      ...form, 
+      requestor: requestorName,
+      timestamp: new Date().toISOString() 
+    };
   
     try {
-      const response = await fetch(SCRIPT_URL, {
+      await fetch(SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors', // Google Apps Script requires no-cors
-        body: JSON.stringify({ 
-          action: 'add', 
-          ...form, 
-          requestor: requestorName 
-        })
+        mode: 'no-cors', // Critical for Google Apps Script
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add', ...orderData })
       });
       
-      // Success! Reset and notify
-      alert(`Order added by ${requestorName}`);
+      // Update state in a specific order to ensure visibility
+      setLastOrder(orderData);
       setForm({ ...form, itemName: '', company: '', spec: '', qty: '' });
-    } catch (e) { 
-      console.error(e);
-      alert("Connection error. Try again."); 
+      setShowSuccess(true); 
+      
+    } catch (err) { 
+      console.error("Submission Error:", err);
+      alert("Connection lost. Please try again."); 
     } finally {
       setBtnLoading(false);
     }
   };
 
-  // Define a nice light grey border style for all inputs
+  const sendWhatsApp = () => {
+    if (!lastOrder) return;
+    const { itemName, qty, unit, shop, owner, requestor, company, spec } = lastOrder;
+    const phone = PHONE_MAP[owner] || "910000000000";
+    
+    const message = 
+`# *NEW REQUIREMENT*
+--------------------------------
+*Item:* ${itemName.toUpperCase()} ${spec ? `(${spec})` : ''}
+*Qty:* ${qty} ${unit}
+*Company:* ${company || '-'}
+*Shop:* ${shop}
+
+*Assigned to:* ${owner.toUpperCase()}
+*Requested by:* ${requestor.toUpperCase()}
+--------------------------------
+*Please check the Seva Orders app to mark as completed.*`;
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+    setShowSuccess(false); 
+  };
+
   const inputStyle = "w-full border border-gray-200 p-3 rounded-xl focus:border-blue-500 outline-none transition-colors";
 
+  // LOGIC: If showSuccess is true, we ONLY render the success card
+  if (showSuccess && lastOrder) {
+    return (
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-green-100 text-center max-w-md mx-auto animate-in fade-in zoom-in duration-300">
+        <div className="flex justify-center mb-4">
+          <div className="bg-green-100 p-4 rounded-full">
+            <Check size={40} className="text-green-600" strokeWidth={4} />
+          </div>
+        </div>
+        
+        <h2 className="text-2xl font-black text-gray-800 mb-1 uppercase tracking-tighter">Requirement Added!</h2>
+        <p className="text-gray-400 text-xs font-bold mb-8 uppercase tracking-widest">Order Request Sent</p>
+        
+        <div className="space-y-3">
+        <button 
+  onClick={sendWhatsApp}
+  className="w-full bg-[#25D366] text-white py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-[0_8px_20px_rgba(37,211,102,0.3)] active:scale-95 transition-all"
+>
+  {/* WhatsApp SVG Icon */}
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.432 5.631 1.433h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+  NOTIFY {lastOrder.owner.toUpperCase()}
+</button>
+          
+          <button 
+            onClick={() => {
+              setShowSuccess(false);
+              setLastOrder(null);
+            }}
+            className="w-full bg-gray-100 text-gray-400 py-4 rounded-2xl font-black text-xs uppercase tracking-widest"
+          >
+            Add Another Item
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // LOGIC: Otherwise, we render the form shown in SCR-20260501-mwl.png
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 space-y-4">
-      <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2"><Package className="text-blue-600"/> NEW REQUIREMENT</h2>
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-gray-100 space-y-4 max-w-md mx-auto">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="bg-blue-100 p-2 rounded-xl">
+          <Package className="text-blue-600" size={24}/>
+        </div>
+        <h2 className="text-2xl font-black text-gray-800 uppercase tracking-tighter">New Requirement</h2>
+      </div>
       
       <div>
-        <label className="text-xs font-bold text-gray-400 uppercase">Item Name*</label>
-        <input required className={inputStyle} value={form.itemName} onChange={e => setForm({...form, itemName: e.target.value})} />
+        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Item Name*</label>
+        <input required className={inputStyle} value={form.itemName} onChange={e => setForm({...form, itemName: e.target.value})} placeholder="e.g. Aquagel Sunscreen" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Company Name</label>
-          <input className={inputStyle} value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Company</label>
+          <input className={inputStyle} value={form.company} onChange={e => setForm({...form, company: e.target.value})} placeholder="Seva" />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Specification</label>
-          <input className={inputStyle} value={form.spec} onChange={e => setForm({...form, spec: e.target.value})} />
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Spec</label>
+          <input className={inputStyle} value={form.spec} onChange={e => setForm({...form, spec: e.target.value})} placeholder="100ml" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Qty*</label>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Quantity*</label>
           <input required type="number" className={inputStyle} value={form.qty} onChange={e => setForm({...form, qty: e.target.value})} />
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Unit*</label>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Unit*</label>
           <select className={`${inputStyle} bg-white`} value={form.unit} onChange={e => setForm({...form, unit: e.target.value})}>
             {['pieces', 'g', 'kg', 'ml', 'ltr', 'packet', 'box', 'dozen', 'bag'].map(u => <option key={u} value={u}>{u}</option>)}
           </select>
@@ -382,7 +493,7 @@ function AddForm({ onSave, currentUserEmail }) { // Add currentUserEmail prop
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Shop*</label>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Shop*</label>
           <select className={`${inputStyle} bg-white`} value={form.shop} onChange={e => setForm({...form, shop: e.target.value})}>
             <option value="Seva [S]">Seva [S]</option>
             <option value="Seva Mart [SM]">Seva Mart [SM]</option>
@@ -390,15 +501,21 @@ function AddForm({ onSave, currentUserEmail }) { // Add currentUserEmail prop
           </select>
         </div>
         <div>
-          <label className="text-xs font-bold text-gray-400 uppercase">Owner*</label>
-          <select className={`${inputStyle} bg-white`} value={form.owner} onChange={e => setForm({...form, owner: e.target.value})}>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Owner*</label>
+          <select className={`${inputStyle} bg-white font-bold text-blue-600`} value={form.owner} onChange={e => setForm({...form, owner: e.target.value})}>
             {['Hussain', 'Burhan', 'Ali', 'Mohammed', 'Shabbar', 'Huzefa', 'Taha', 'Kamlesh', 'Rahul'].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
       </div>
 
-      <button disabled={btnLoading} type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:bg-blue-700 active:scale-95 transition-all">
-        {btnLoading ? "Processing..." : "Submit Requirement"}
+      <button 
+        disabled={btnLoading} 
+        type="submit" 
+        className={`w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-2 mt-4 ${
+          btnLoading ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+        }`}
+      >
+        {btnLoading ? <Loader2 className="animate-spin" /> : "SUBMIT REQUIREMENT"}
       </button>
     </form>
   );
