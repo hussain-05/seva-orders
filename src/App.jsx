@@ -94,25 +94,44 @@ export default function App() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Adding a timeout check
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const id = setTimeout(() => controller.abort(), 8000);
   
       const response = await fetch(SCRIPT_URL, { signal: controller.signal });
       clearTimeout(id);
       
       const data = await response.json();
+      
+      // --- CACHING LOGIC ---
       setItems(data);
+      localStorage.setItem('seva_items_cache', JSON.stringify(data));
+      localStorage.setItem('seva_cache_timestamp', new Date().getTime().toString());
+      // ---------------------
+
     } catch (e) {
       console.error("Connection failed", e);
-      // Alert the user if it's a network/timeout issue
-      alert("Connection to Seva Server failed. Please check your internet.");
+      // If network fails, try to load from cache as a fallback
+      const cachedData = localStorage.getItem('seva_items_cache');
+      if (cachedData) {
+        setItems(JSON.parse(cachedData));
+      } else {
+        alert("Connection failed and no cached data found.");
+      }
     }
     setLoading(false);
   };
 
   useEffect(() => { 
-    if (user && view !== 'add') fetchData(); 
+    if (user && view !== 'add') {
+      // 1. Check for cached data immediately to show something to the user
+      const cachedData = localStorage.getItem('seva_items_cache');
+      if (cachedData) {
+        setItems(JSON.parse(cachedData));
+      }
+      
+      // 2. Then trigger the fresh fetch
+      fetchData(); 
+    }
   }, [view, user]);
 
   const handleCardWhatsApp = (item) => {
@@ -357,6 +376,14 @@ export default function App() {
 
       <main className="p-4 max-w-2xl mx-auto">
         {loading && <div className="flex justify-center p-4"><Loader2 className="animate-spin text-blue-600" /></div>}
+
+        {/* Add this inside your main return, perhaps near the loader */}
+        {!loading && localStorage.getItem('seva_cache_timestamp') && (
+          <p className="text-[8px] text-center text-gray-400 uppercase font-bold tracking-widest mb-2">
+            Last Updated: {new Date(parseInt(localStorage.getItem('seva_cache_timestamp'))).toLocaleTimeString()}
+          </p>
+        )}
+
         {view === 'add' && <AddForm onSave={() => setView('toOrder')} currentUserEmail={user.email} />}
         {(view === 'toOrder' || view === 'ordered') && (
           <ListView items={items} type={view} onComplete={completeOrder} onUnavailable={markUnavailable} onBulkPrint={handleBulkPrint} onDelete={deleteOrder} currentUserEmail={user.email} />
