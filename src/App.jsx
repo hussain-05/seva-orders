@@ -584,17 +584,24 @@ function ListView({ items, type, onComplete, onUnavailable, onBulkPrint, onDelet
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
-  // UPDATED FILTER: Now shows Completed AND Unavailable in the history view
-  const filtered = items.filter(i => {
-    const matchStatus = type === 'toOrder' 
-      ? i.Status === 'Pending' 
-      : (i.Status === 'Completed' || i.Status === 'Unavailable');
-    
-    const matchShop = filterShop === 'All' || i.Shop === filterShop;
-    const matchOwner = filterOwner === 'All' || i.Owner === filterOwner;
-    const matchReq = filterReq === 'All' || (i.Requestor && i.Requestor === filterReq);
-    return matchStatus && matchShop && matchOwner && matchReq;
-  });
+ // UPDATED FILTER & SORT: Shows history correctly and puts most recent at the top
+ const filtered = items
+ .filter(i => {
+   const matchStatus = type === 'toOrder' 
+     ? i.Status === 'Pending' 
+     : (i.Status === 'Completed' || i.Status === 'Unavailable');
+   
+   const matchShop = filterShop === 'All' || i.Shop === filterShop;
+   const matchOwner = filterOwner === 'All' || i.Owner === filterOwner;
+   const matchReq = filterReq === 'All' || (i.Requestor && i.Requestor === filterReq);
+   return matchStatus && matchShop && matchOwner && matchReq;
+ })
+ .sort((a, b) => {
+   // Descending order: Newest Date first
+   const dateA = new Date(a.Date).getTime();
+   const dateB = new Date(b.Date).getTime();
+   return dateB - dateA;
+ });
 
   const grouped = filtered.reduce((acc, item) => {
     const date = item.Date ? new Date(item.Date) : new Date();
