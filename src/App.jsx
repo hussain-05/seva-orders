@@ -144,18 +144,31 @@ export default function App() {
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ 
           action: 'unavailable', 
-          itemName: item.ItemName, // Matches payload.itemName in script
-          date: item.Date           // Matches payload.date in script
+          itemName: item.ItemName, 
+          date: item.Date 
         })
       });
   
-      // We wait 1.5s to allow the Google Sheet to refresh
+      // --- AUTOMATIC WHATSAPP LOGIC ---
+      // Look up the requestor's phone number from your PHONE_MAP
+      const requestorPhone = PHONE_MAP[item.Requestor] || "910000000000";
+      
+      const message = 
+  `*ITEM UNAVAILABLE*
+  --------------------------------
+  *Item:* ${item.ItemName.toUpperCase()}
+  *Status:* Out of Stock / Not Available
+  *Owner:* ${item.Owner.toUpperCase()}
+  
+  *Note:* This request has been moved to the Ordered history as Unavailable.`;
+  
+      // Open WhatsApp automatically
+      window.open(`https://wa.me/${requestorPhone}?text=${encodeURIComponent(message)}`, '_blank');
+  
       setTimeout(() => {
         fetchData();
-        alert("Marked as Unavailable.");
       }, 1500);
     } catch (e) {
-      console.error(e);
       alert("Error updating status.");
     } finally {
       setLoading(false);
@@ -172,7 +185,7 @@ export default function App() {
   
       // 1. Filter logic including the new Requestor filter
       const filtered = allData.filter(i => {
-        const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
+        const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : (i.Status === 'Completed' || i.Status === 'Unavailable');
         const matchShop = activeFilters.shop === 'All' || i.Shop === activeFilters.shop;
         const matchOwner = activeFilters.owner === 'All' || i.Owner === activeFilters.owner;
         const matchReq = activeFilters.requestor === 'All' || i.Requestor === activeFilters.requestor;
@@ -566,12 +579,16 @@ function ListView({ items, type, onComplete, onUnavailable, onBulkPrint, onDelet
 
   const handleCardWhatsApp = (item) => {
     const phone = PHONE_MAP[item.Owner] || "910000000000";
-    const message = `*REMINDER: REQUIREMENT*%0A--------------------------------%0A*Item:* ${item.ItemName.toUpperCase()} ${item.Spec ? `(${item.Spec})` : ''}%0A*Qty:* ${item.Qty} ${item.Unit}%0A*Shop:* ${item.Shop}%0A%0A*Assigned to:* ${item.Owner.toUpperCase()}%0A*Requested by:* ${item.Requestor.toUpperCase()}%0A--------------------------------%0A *This item is still pending. Please update the status in the app.*`;
+    const message = `*REMINDER: REQUIREMENT*%0A--------------------------------%0A*Item:* ${item.ItemName.toUpperCase()} ${item.Spec ? `(${item.Spec})` : ''}%0A*Qty:* ${item.Qty} ${item.Unit}%0A*Shop:* ${item.Shop}%0A%0A*Assigned to:* ${item.Owner.toUpperCase()}%0A*Requested by:* ${item.Requestor.toUpperCase()}%0A--------------------------------%0A*This item is still pending. Please update the status in the app.*`;
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
   };
 
+  // UPDATED FILTER: Now shows Completed AND Unavailable in the history view
   const filtered = items.filter(i => {
-    const matchStatus = type === 'toOrder' ? i.Status === 'Pending' : i.Status === 'Completed';
+    const matchStatus = type === 'toOrder' 
+      ? i.Status === 'Pending' 
+      : (i.Status === 'Completed' || i.Status === 'Unavailable');
+    
     const matchShop = filterShop === 'All' || i.Shop === filterShop;
     const matchOwner = filterOwner === 'All' || i.Owner === filterOwner;
     const matchReq = filterReq === 'All' || (i.Requestor && i.Requestor === filterReq);
@@ -594,6 +611,7 @@ function ListView({ items, type, onComplete, onUnavailable, onBulkPrint, onDelet
 
   return (
     <div className="space-y-4">
+      {/* FILTER PANEL */}
       <div className="bg-white p-4 rounded-2xl shadow-md border border-blue-50 space-y-3">
         <div className="grid grid-cols-3 gap-2">
           <select className="bg-gray-50 p-2 rounded-xl text-xs font-bold outline-none" value={filterShop} onChange={(e) => setFilterShop(e.target.value)}>
@@ -629,81 +647,77 @@ function ListView({ items, type, onComplete, onUnavailable, onBulkPrint, onDelet
                 const isRequestor = loggedInName === item.Requestor;
 
                 return (
-                  <div key={idx} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center transition-all">
-                    <div className="flex-1 space-y-3 pr-4">
-                      <div className="flex justify-between items-start border-b border-gray-50 pb-2">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <h5 className="font-black text-gray-800 text-base uppercase tracking-tight">{item.ItemName}</h5>
-                          <span className="text-[10px] font-bold text-blue-500 italic">{item.Spec ? `(${item.Spec})` : ''}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest block leading-none mb-1">Owner</span>
-                          <span className="text-xs font-bold text-gray-700 uppercase leading-none">{item.Owner}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-4 items-center">
-                        <div className="flex flex-col border-r border-gray-50">
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Company</span>
-                          <span className="text-sm font-bold text-gray-800 truncate">{item.Company || "-"}</span>
-                        </div>
-                        <div className="flex flex-col items-end text-right">
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Quantity</span>
-                          <div className="flex items-baseline gap-1">
-                              <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
-                              <span className="text-[9px] font-bold text-gray-500 uppercase leading-none">{item.Unit}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-2.5 border-t border-gray-100">
-                        {/* 1. STATUS BADGE: Shows "Unavailable" OR "Turnaround Time" */}
-                        {item.Status === 'Unavailable' ? (
-                          <span className="text-[8px] font-black bg-orange-100 text-orange-600 px-2 py-1 rounded border border-orange-200 uppercase">
-                            Unavailable
+                  <div key={idx} className="relative overflow-hidden rounded-2xl mb-3">
+                    {/* MINIMALIST OVERLAY FOR UNAVAILABLE */}
+                    {item.Status === 'Unavailable' && (
+                      <div className="absolute inset-0 bg-white/60 backdrop-blur-[0.2px] z-10 flex items-center justify-center pointer-events-none">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[10px] font-black text-orange-600 uppercase tracking-[0.2em] bg-orange-50 px-4 py-1.5 rounded-full border border-orange-100 shadow-sm">
+                            Not Available
                           </span>
-                        ) : (
-                          type === 'ordered' && (
-                            <span className="text-[8px] font-black bg-green-50 text-green-600 px-2 py-1 rounded border border-green-100 uppercase">
-                              {getHours(item.Date, item.CompletedAt)}
-                            </span>
-                          )
-                        )}
-
-                        {/* 2. ALWAYS VISIBLE BADGES */}
-                        <span className="text-[8px] font-black bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200 uppercase">
-                          {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                        </span>
-                        
-                        <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 uppercase">
-                          {item.Shop}
-                        </span>
-                        
-                        <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 uppercase">
-                          Req: {item.Requestor || "---"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {type === 'toOrder' && (
-                      <div className="flex flex-col gap-2">
-                        {isRequestor && (
-                          <button onClick={() => handleCardWhatsApp(item)} className="w-10 h-10 flex items-center justify-center rounded-xl border bg-green-50 text-[#25D366] border-green-100 shadow-sm active:scale-90 transition-all">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.432 5.631 1.433h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
-                          </button>
-                        )}
-                        <button onClick={() => isAssignedOwner ? onComplete(item) : alert(`Only ${item.Owner} can complete.`)} className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isAssignedOwner ? "bg-green-50 text-green-600 border-green-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}><Check size={20} strokeWidth={3}/></button>
-                        {/* NEW: UNAVAILABLE BUTTON (Owner Lock) */}
-                        <button 
-                          onClick={() => isAssignedOwner ? onUnavailable(item) : alert(`Only ${item.Owner} can mark this unavailable.`)} 
-                          className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isAssignedOwner ? "bg-orange-50 text-orange-600 border-orange-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}
-                          title="Mark Unavailable"
-                        >
-                          <span className="font-bold text-xs">N/A</span>
-                        </button>
-                        <button onClick={() => isRequestor ? onDelete(item) : alert(`Only ${item.Requestor} can delete.`)} className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isRequestor ? "bg-red-50 text-red-500 border-red-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}><span className="font-bold text-xl">×</span></button>
+                        </div>
                       </div>
                     )}
+
+                    <div className={`bg-white p-5 border border-gray-100 flex justify-between items-center transition-all ${item.Status === 'Unavailable' ? 'opacity-80' : ''}`}>
+                      <div className="flex-1 space-y-3 pr-4">
+                        <div className="flex justify-between items-start border-b border-gray-50 pb-2">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <h5 className="font-black text-gray-800 text-base uppercase tracking-tight">{item.ItemName}</h5>
+                            <span className="text-[10px] font-bold text-blue-500 italic">{item.Spec ? `(${item.Spec})` : ''}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest block leading-none mb-1">Owner</span>
+                            <span className="text-xs font-bold text-gray-700 uppercase leading-none">{item.Owner}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-4 items-center">
+                          <div className="flex flex-col border-r border-gray-50">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Company</span>
+                            <span className="text-sm font-bold text-gray-800 truncate">{item.Company || "-"}</span>
+                          </div>
+                          <div className="flex flex-col items-end text-right">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Quantity</span>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-black text-blue-600 leading-none">{item.Qty}</span>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase leading-none">{item.Unit}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 pt-2.5 border-t border-gray-100">
+                          {item.Status === 'Unavailable' ? (
+                            <span className="text-[8px] font-black bg-orange-600 text-white px-2 py-1 rounded uppercase">Unavailable</span>
+                          ) : (
+                            type === 'ordered' && (
+                              <span className="text-[8px] font-black bg-green-50 text-green-600 px-2 py-1 rounded border border-green-100 uppercase">
+                                {getHours(item.Date, item.CompletedAt)}
+                              </span>
+                            )
+                          )}
+                          <span className="text-[8px] font-black bg-gray-100 text-gray-600 px-2 py-1 rounded border border-gray-200 uppercase">
+                            {new Date(item.Date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                          </span>
+                          <span className="text-[8px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 uppercase">{item.Shop}</span>
+                          <span className="text-[8px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 uppercase">Req: {item.Requestor}</span>
+                        </div>
+                      </div>
+
+                      {/* BUTTON COLUMN - RESTORED AND FIXED */}
+                      {type === 'toOrder' && (
+                        <div className="flex flex-col gap-2 relative z-20">
+                          {isRequestor && (
+                            <button onClick={() => handleCardWhatsApp(item)} className="w-10 h-10 flex items-center justify-center rounded-xl border bg-green-50 text-[#25D366] border-green-100 shadow-sm active:scale-90 transition-all">
+                              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.72.937 3.659 1.432 5.631 1.433h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                            </button>
+                          )}
+                          <button onClick={() => isAssignedOwner ? onComplete(item) : alert(`Only ${item.Owner} can complete.`)} className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isAssignedOwner ? "bg-green-50 text-green-600 border-green-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}><Check size={20} strokeWidth={3}/></button>
+                          <button onClick={() => isAssignedOwner ? onUnavailable(item) : alert(`Only ${item.Owner} can mark N/A.`)} className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isAssignedOwner ? "bg-orange-50 text-orange-600 border-orange-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}><span className="font-bold text-xs uppercase">N/A</span></button>
+                          <button onClick={() => isRequestor ? onDelete(item) : alert(`Only ${item.Requestor} can delete.`)} className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all ${isRequestor ? "bg-red-50 text-red-500 border-red-100" : "bg-gray-50 text-gray-300 opacity-50 cursor-not-allowed"}`}><span className="font-bold text-xl">×</span></button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
